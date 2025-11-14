@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>dyfusion</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background-color: #000312;
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+      color: white;
+    }
+    #logo {
+      position: absolute;
+      top: 15px;
+      left: 20px;
+      font-size: 22px;
+      letter-spacing: 1px;
+      color: #fff;
+      user-select: none;
+    }
+    #scene-container {
+      width: 100%;
+      height: 70%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #chatbox {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 420px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      justify-content: space-between;
+      backdrop-filter: blur(8px);
+    }
+    #chatbox input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: white;
+      font-size: 16px;
+      padding: 10px;
+    }
+    #chatbox button {
+      background: #0066ff;
+      border: none;
+      border-radius: 8px;
+      color: white;
+      padding: 10px 16px;
+      font-size: 15px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #chatbox button:hover {
+      background: #3385ff;
+    }
+  </style>
+</head>
+<body>
+  <div id="logo">dyfusion</div>
+  <div id="scene-container"></div>
+
+  <div id="chatbox">
+    <input id="userInput" type="text" placeholder="Введите тему → send"/>
+    <button id="sendBtn">send</button>
+  </div>
+
+<script type="module">
+
+let sendClicks = 0;
+
+import * as THREE from "https://cdn.skypack.dev/three@0.136.0";
+
+const container = document.getElementById('scene-container');
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+  45,
+  window.innerWidth / (window.innerHeight * 0.7),
+  0.1,
+  1000
+);
+camera.position.z = 3;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight * 0.7);
+renderer.setPixelRatio(window.devicePixelRatio);
+container.appendChild(renderer.domElement);
+
+const sphereGeometry = new THREE.SphereGeometry(1, 64, 64);
+const sphereMaterial = new THREE.MeshPhongMaterial({
+  color: 0x2222ff,
+  emissive: 0x111133,
+  shininess: 80,
+  specular: 0xffffff,
+  transparent: true,
+  opacity: 0.0,
+  side: THREE.DoubleSide
+});
+
+const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+scene.add(sphere);
+
+const pointsGroup = new THREE.Group();
+const colors = [0xff3333, 0xffcc33, 0x33ff66, 0x3399ff];
+const pointGeom = new THREE.SphereGeometry(0.03, 8, 8);
+
+for (let i = 0; i < 300; i++) {
+  const phi = Math.random() * Math.PI;
+  const theta = Math.random() * Math.PI * 2;
+  const x = Math.sin(phi) * Math.cos(theta);
+  const y = Math.sin(phi) * Math.sin(theta);
+  const z = Math.cos(phi);
+  const color = colors[Math.floor(Math.random() * colors.length)];
+  const p = new THREE.Mesh(pointGeom, new THREE.MeshBasicMaterial({ color }));
+  const radius = 1.02;
+  p.position.set(x * radius, y * radius, z * radius);
+  pointsGroup.add(p);
+}
+scene.add(pointsGroup);
+
+scene.add(new THREE.PointLight(0xffffff, 1.5).position.set(2,3,4));
+scene.add(new THREE.AmbientLight(0x404040));
+
+function animate() {
+  requestAnimationFrame(animate);
+  sphere.rotation.y += 0.005;
+  pointsGroup.rotation.y += 0.005;
+  pointsGroup.rotation.x += 0.002;
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / (window.innerHeight * 0.7);
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight * 0.7);
+});
+
+
+function chooseRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+const SEP = '\u0001';
+
+
+class MarkovChain {
+  constructor(stateSize = 8) {
+    this.stateSize = stateSize;
+    this.transitions = new Map();
+    this.state = null;
+  }
+  tupleify(text) {
+    if (this.stateSize >= text.length) throw new Error();
+    const out = [];
+    for (let i = 0; i <= text.length - this.stateSize - 1; i++) {
+      const chunk = text.slice(i, i + this.stateSize + 1);
+      const state = chunk.slice(0, -1);
+      const next  = chunk.slice(1);
+      out.push([state, next]);
+    }
+    return out;
+  }
+  update(text) {
+    for (const [s, nxt] of this.tupleify(text)) {
+      const k = String(s);
+      if (!this.transitions.has(k)) this.transitions.set(k, []);
+      this.transitions.get(k).push(nxt);
+    }
+  }
+  next() {
+    let possible;
+    if (!this.state || !this.transitions.has(String(this.state)))
+      possible = Array.from(this.transitions.keys());
+    else
+      possible = this.transitions.get(String(this.state));
+    const chosen = chooseRandom(possible);
+    if (!chosen) return null;
+    this.state = chosen;
+    return this.state.slice(-1);
+  }
+  generate(prompt = "", outputLength = 50) {
+    if (this.transitions.size === 0) return "";
+    if (prompt && prompt.length <= this.stateSize) {
+      const matches = Array.from(this.transitions.keys()).filter(k => k.includes(prompt));
+      this.state = matches.length ? chooseRandom(matches) : chooseRandom(Array.from(this.transitions.keys()));
+    } else if (prompt) {
+      this.state = prompt.slice(-this.stateSize);
+    } else {
+      this.state = chooseRandom(Array.from(this.transitions.keys()));
+    }
+    let out = prompt;
+    const steps = outputLength - out.length;
+    for (let i = 0; i < steps; i++) {
+      const ch = this.next();
+      if (!ch) break;
+      out += ch;
+    }
+    return out;
+  }
+}
+
+
+class WordMarkovChain extends MarkovChain {
+  constructor(stateSize = 2) { super(stateSize); }
+  tokenize(text) {
+    const tokens = [];
+    let cur = "";
+    for (let ch of text) {
+      if (ch === " " || ch === "\t") {
+        if (cur) tokens.push(cur), cur = "";
+      } else if (ch === "\n") {
+        if (cur) tokens.push(cur), cur = "";
+        tokens.push("\n");
+      } else if (".,:;?!".includes(ch)) {
+        if (cur) tokens.push(cur), cur = "";
+        tokens.push(ch);
+      } else {
+        cur += ch;
+      }
+    }
+    if (cur) tokens.push(cur);
+    return tokens;
+  }
+  tupleify(text) {
+    const words = this.tokenize(text);
+    if (this.stateSize >= words.length) throw new Error();
+    const out = [];
+    for (let i = 0; i <= words.length - this.stateSize - 1; i++) {
+      const state = words.slice(i, i + this.stateSize).join(SEP);
+      const next  = words.slice(i + 1, i + this.stateSize + 1).join(SEP);
+      out.push([state, next]);
+    }
+    return out;
+  }
+  update(text) {
+    const tuples = this.tupleify(text);
+    for (const [s, nxt] of tuples) {
+      if (!this.transitions.has(s)) this.transitions.set(s, []);
+      this.transitions.get(s).push(nxt);
+    }
+  }
+  next() {
+    let possible;
+    if (!this.state || !this.transitions.has(this.state))
+      possible = Array.from(this.transitions.keys());
+    else
+      possible = this.transitions.get(this.state);
+    const chosen = chooseRandom(possible);
+    if (!chosen) return null;
+    this.state = chosen;
+    const arr = chosen.split(SEP);
+    return arr[arr.length - 1];
+  }
+  generate(prompt = "", outputLength = 50) {
+    const tokens = prompt ? this.tokenize(prompt) : [];
+    if (!tokens.length)
+      this.state = chooseRandom(Array.from(this.transitions.keys()));
+    else if (tokens.length <= this.stateSize) {
+      const matches = Array.from(this.transitions.keys()).filter(k => {
+        const arr = k.split(SEP);
+        return arr.slice(0, tokens.length).join(" ") === tokens.join(" ");
+      });
+      this.state = matches.length ? chooseRandom(matches) : chooseRandom(Array.from(this.transitions.keys()));
+    } else {
+      this.state = tokens.slice(-this.stateSize).join(SEP);
+    }
+    const outTokens = [...tokens];
+    for (let i = 0; i < outputLength; i++) {
+      const next = this.next();
+      if (!next) break;
+      outTokens.push(next);
+    }
+    return outTokens.join(" ").replace(/\s+([.,:;?!])/g, '$1');
+  }
+}
+
+function generate(opts = {}) {
+  const {
+    mode = "char",
+    stateSize = (mode === "word" ? 2 : 8),
+    prompt = "",
+    text = "",
+    outputLength = 50
+  } = opts;
+  if (!text) return "Ошибка: пустой текст (статья не найдена).";
+  let model;
+  try {
+    model = mode === "word" ? new WordMarkovChain(stateSize) : new MarkovChain(stateSize);
+    model.update(text);
+  } catch {
+    let s = Math.min(4, Math.max(1, Math.floor(text.length / 3)));
+    while (s > 0) {
+      try {
+        model = mode === "word" ? new WordMarkovChain(s) : new MarkovChain(s);
+        model.update(text);
+        break;
+      } catch {
+        s--;
+      }
+    }
+    if (!model) return "Ошибка: текст слишком короткий.";
+  }
+  return model.generate(prompt, outputLength);
+}
+
+
+async function get_info(topic) {
+  const lang = /[а-яё]/i.test(topic) ? "ru" : "en";
+
+  const url =
+    "https://" + lang + ".wikipedia.org/w/api.php" +
+    "?action=parse&page=" + encodeURIComponent(topic) +
+    "&prop=text&format=json&formatversion=2&origin=*";
+
+  try {
+    const res = await fetch(url);
+    const json = await res.json();
+    if (!json.parse || !json.parse.text) return "";
+    const div = document.createElement("div");
+    div.innerHTML = json.parse.text;
+    div.querySelectorAll("table, sup, .reference, .navbox, .infobox, style, script")
+      .forEach(n => n.remove());
+    const nodes = div.querySelectorAll("p, h1, h2, h3, h4");
+    const parts = [];
+    nodes.forEach(n => {
+      const text = n.textContent.trim().replace(/\[\d+\]/g, "");
+      if (text) parts.push(text + "\n");
+    });
+    return parts.join("\n");
+  } catch {
+    return "";
+  }
+}
+
+
+document.getElementById('sendBtn').addEventListener('click', async () => {
+  sendClicks++;
+  if (sendClicks === 2) {
+    location.reload();
+    return;
+  }
+
+  const userText = document.getElementById('userInput').value.trim();
+  if (!userText) return;
+
+  renderer.setAnimationLoop(null);
+  renderer.domElement.remove();
+
+  const dialog = document.createElement('div');
+  dialog.style.width = "80%";
+  dialog.style.maxWidth = "600px";
+  dialog.style.margin = "0 auto";
+  dialog.style.marginTop = "10vh";
+  dialog.style.background = "rgba(255,255,255,0.05)";
+  dialog.style.border = "1px solid rgba(255,255,255,0.1)";
+  dialog.style.borderRadius = "15px";
+  dialog.style.padding = "20px";
+  dialog.style.color = "white";
+  dialog.style.fontSize = "18px";
+  dialog.style.lineHeight = "1.6";
+  dialog.style.whiteSpace = "pre-line";
+  dialog.textContent = "Загрузка статьи \"" + userText + "\" ...\n\n";
+  container.appendChild(dialog);
+
+  const wiki = await get_info(userText);
+
+  if (!wiki) {
+    dialog.textContent += "Статья не найдена.";
+    return;
+  }
+
+  const generated = generate({
+    mode: "word",
+    text: wiki,
+    prompt: "",
+    outputLength: 50
+  });
+
+  dialog.textContent = userText + "\n\n" + generated;
+});
+
+</script>
+</body>
+</html>
