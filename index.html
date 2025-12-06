@@ -294,7 +294,7 @@ function generate(opts = {}) {
     text = "",
     outputLength = 50
   } = opts;
-  if (!text) return "Ошибка: пустой текст (статья не найдена).";
+  if (!text) return "not found";
   let model;
   try {
     model = mode === "word" ? new WordMarkovChain(stateSize) : new MarkovChain(stateSize);
@@ -371,13 +371,13 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
   dialog.style.fontSize = "18px";
   dialog.style.lineHeight = "1.6";
   dialog.style.whiteSpace = "pre-line";
-  dialog.textContent = "Загрузка статьи \"" + userText + "\" ...\n\n";
+  dialog.textContent = "loading \"" + userText + "\" ...\n\n";
   container.appendChild(dialog);
 
   const wiki = await get_info(userText);
 
   if (!wiki) {
-    dialog.textContent += "Статья не найдена.";
+    dialog.textContent += "not found";
     return;
   }
 
