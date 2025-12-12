@@ -71,7 +71,7 @@
   <div id="scene-container"></div>
 
   <div id="chatbox">
-    <input id="userInput" type="text" placeholder="https://perlch.github.io/dyfusion"/>
+    <input id="userInput" type="text" placeholder="type bin for learn dyfusion"/>
     <button id="sendBtn">send</button>
   </div>
 
@@ -310,7 +310,7 @@ function generate(opts = {}) {
         s--;
       }
     }
-    if (!model) return "Ошибка: текст слишком короткий.";
+    if (!model) return "Error: too short.";
   }
   return model.generate(prompt, outputLength);
 }
@@ -354,7 +354,7 @@ document.getElementById('sendBtn').addEventListener('click', async () => {
 
   const userText = document.getElementById('userInput').value.trim();
   if (!userText) return;
-
+  if (userText==='bin') window.open('bin.html')
   renderer.setAnimationLoop(null);
   renderer.domElement.remove();
 
