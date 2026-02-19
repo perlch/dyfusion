@@ -50,9 +50,7 @@ project-root
 
 Simply open:
 
-```
-[index.html](https://perlch.github.io/dyfusion/)
-```
+https://perlch.github.io/dyfusion/
 
 in your browser.
 
