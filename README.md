@@ -6,8 +6,6 @@ A minimal neural-inspired text generator built using **Markov Chains** and imple
 * CSS
 * Vanilla JavaScript
 
-No frameworks. No libraries. Just raw logic.
-
 ---
 
 ## About the Project
